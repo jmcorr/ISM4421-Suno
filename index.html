@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Music Studio — powered by Suno</title>
+<meta name="description" content="Generate original songs from a text prompt using the Suno API." />
+<style>
+  :root {
+    --bg-0: #0b0713;
+    --bg-1: #150f24;
+    --surface: #1c1530;
+    --surface-2: #241b3d;
+    --border: #34294f;
+    --text: #f1edf9;
+    --text-dim: #a89bc4;
+    --accent: #a855f7;
+    --accent-2: #ec4899;
+    --accent-text: #ffffff;
+    --danger: #f87171;
+    --danger-bg: #3b1420;
+    --success: #34d399;
+    --radius: 14px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(168, 85, 247, 0.25), transparent 60%),
+      radial-gradient(1000px 600px at 110% 10%, rgba(236, 72, 153, 0.18), transparent 55%),
+      var(--bg-0);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+  }
+
+  .app {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 40px 16px 80px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 28px;
+    position: relative;
+  }
+
+  header h1 {
+    font-size: 1.9rem;
+    margin: 0 0 6px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-weight: 800;
+  }
+
+  header .subtitle {
+    color: var(--text-dim);
+    margin: 0;
+    font-size: 0.95rem;
+  }
+
+  .credits-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 14px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--text-dim);
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  }
+
+  .mode-toggle {
+    display: flex;
+    gap: 6px;
+    background: var(--bg-1);
+    padding: 4px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+  }
+
+  .mode-btn {
+    flex: 1;
+    padding: 9px 12px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .mode-btn.active {
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    color: var(--accent-text);
+  }
+
+  label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    margin: 16px 0 6px;
+  }
+
+  label:first-of-type { margin-top: 0; }
+
+  input[type="text"],
+  textarea,
+  select {
+    width: 100%;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 11px 13px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    resize: vertical;
+    transition: border-color 0.15s;
+  }
+
+  input[type="text"]:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  textarea { min-height: 84px; }
+
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+  }
+
+  .row > div { flex: 1; min-width: 160px; }
+  .row label { margin: 0 0 6px; }
+
+  .checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: var(--text);
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .checkbox input { width: 17px; height: 17px; accent-color: var(--accent); }
+
+  .hint {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  button[type="submit"] {
+    width: 100%;
+    margin-top: 22px;
+    padding: 13px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    color: var(--accent-text);
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+
+  button[type="submit"]:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  button[type="submit"]:not(:disabled):active { transform: scale(0.99); }
+
+  .status {
+    margin-top: 18px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    font-size: 0.88rem;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error {
+    margin-top: 18px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--danger-bg);
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    color: var(--danger);
+    font-size: 0.88rem;
+  }
+
+  .results {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .track-card {
+    display: flex;
+    gap: 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+  }
+
+  .track-art {
+    width: 72px;
+    height: 72px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: var(--bg-1);
+    flex-shrink: 0;
+  }
+
+  .track-info { flex: 1; min-width: 0; }
+
+  .track-info h3 {
+    margin: 0 0 2px;
+    font-size: 1rem;
+  }
+
+  .track-info .tags {
+    margin: 0 0 8px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .track-info audio {
+    width: 100%;
+    height: 36px;
+  }
+
+  .download-link {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 0.82rem;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .download-link:hover { text-decoration: underline; }
+
+  details.lyrics-tool {
+    margin-top: 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 4px 24px;
+  }
+
+  details.lyrics-tool summary {
+    padding: 16px 0;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.92rem;
+    color: var(--text-dim);
+    list-style: none;
+  }
+
+  details.lyrics-tool summary::-webkit-details-marker { display: none; }
+
+  .lyrics-panel { padding-bottom: 20px; }
+
+  .lyrics-panel button {
+    margin-top: 10px;
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+
+  .lyrics-panel button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  #lyricsResult { margin-top: 14px; font-size: 0.85rem; color: var(--text-dim); }
+
+  #lyricsResult pre {
+    white-space: pre-wrap;
+    font-family: inherit;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    color: var(--text);
+  }
+
+  footer {
+    text-align: center;
+    margin-top: 28px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+  }
+
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>🎵 AI Music Studio</h1>
+      <p class="subtitle">Describe a song, get an original track — powered by the Suno API</p>
+      <div class="credits-badge" id="creditsBadge">Credits: —</div>
+    </header>
+
+    <main class="card">
+      <div class="mode-toggle" role="tablist">
+        <button type="button" class="mode-btn active" data-mode="simple">Simple</button>
+        <button type="button" class="mode-btn" data-mode="custom">Custom</button>
+      </div>
+
+      <form id="generateForm">
+        <div id="simpleFields">
+          <label for="simplePrompt">Describe your song</label>
+          <textarea id="simplePrompt" placeholder="A chill lo-fi beat with soft female vocals about a rainy night in Tokyo"></textarea>
+          <p class="hint">The AI writes fitting lyrics and structure automatically.</p>
+        </div>
+
+        <div id="customFields" hidden>
+          <label for="title">Title</label>
+          <input type="text" id="title" maxlength="80" placeholder="Midnight Rain" />
+
+          <label for="lyrics">Lyrics <span style="font-weight:400;">(optional — leave blank to let AI write them)</span></label>
+          <textarea id="lyrics" placeholder="[Verse]&#10;Night city lights shining bright..."></textarea>
+
+          <label for="negativeTags">Avoid <span style="font-weight:400;">(optional)</span></label>
+          <input type="text" id="negativeTags" placeholder="Heavy metal, upbeat drums" />
+
+          <label for="vocalGender">Vocal preference</label>
+          <select id="vocalGender">
+            <option value="">Any</option>
+            <option value="f">Female</option>
+            <option value="m">Male</option>
+          </select>
+        </div>
+
+        <label for="style">Style / genre <span id="styleOptionalTag" style="font-weight:400;">(optional)</span></label>
+        <input type="text" id="style" placeholder="Lo-fi, chill, jazzy" />
+
+        <div class="row">
+          <label class="checkbox" style="margin-top:0;">
+            <input type="checkbox" id="instrumental" />
+            Instrumental (no vocals)
+          </label>
+          <div>
+            <label for="model">Model</label>
+            <select id="model">
+              <option value="V6" selected>V6 (recommended)</option>
+              <option value="V6_MINI">V6 Mini — faster</option>
+              <option value="V6_WILD">V6 Wild — experimental</option>
+              <option value="V5_5">V5.5 (legacy)</option>
+              <option value="V5">V5 (legacy)</option>
+              <option value="V4_5PLUS">V4.5 Plus (legacy)</option>
+              <option value="V4_5ALL">V4.5 All (legacy)</option>
+              <option value="V4_5">V4.5 (legacy)</option>
+              <option value="V4">V4 (legacy)</option>
+            </select>
+          </div>
+        </div>
+
+        <button type="submit" id="generateBtn">Generate Music</button>
+      </form>
+
+      <div class="status" id="statusArea" hidden>
+        <span class="spinner" id="statusSpinner"></span>
+        <span id="statusText"></span>
+      </div>
+      <div class="error" id="errorArea" hidden></div>
+      <div class="results" id="results"></div>
+    </main>
+
+    <details class="lyrics-tool">
+      <summary>Need lyrics ideas? Generate lyrics only →</summary>
+      <div class="lyrics-panel">
+        <label for="lyricsPrompt">What's the song about?</label>
+        <textarea id="lyricsPrompt" maxlength="200" placeholder="A song about chasing dreams in a big city"></textarea>
+        <button type="button" id="lyricsBtn">Generate Lyrics</button>
+        <div id="lyricsResult"></div>
+      </div>
+    </details>
+
+    <footer>
+      <p>
+        Powered by <a href="https://sunoapi.org" target="_blank" rel="noopener">Suno API</a>.
+        Generated tracks are hosted for about 15 days — download what you want to keep.
+      </p>
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      const API = {
+        generate: '/.netlify/functions/generate',
+        status: '/.netlify/functions/status',
+        credits: '/.netlify/functions/credits',
+        lyrics: '/.netlify/functions/lyrics',
+      };
+
+      const els = {
+        modeBtns: Array.from(document.querySelectorAll('.mode-btn')),
+        simpleFields: document.getElementById('simpleFields'),
+        customFields: document.getElementById('customFields'),
+        simplePrompt: document.getElementById('simplePrompt'),
+        title: document.getElementById('title'),
+        lyrics: document.getElementById('lyrics'),
+        negativeTags: document.getElementById('negativeTags'),
+        vocalGender: document.getElementById('vocalGender'),
+        style: document.getElementById('style'),
+        instrumental: document.getElementById('instrumental'),
+        model: document.getElementById('model'),
+        form: document.getElementById('generateForm'),
+        generateBtn: document.getElementById('generateBtn'),
+        statusArea: document.getElementById('statusArea'),
+        statusText: document.getElementById('statusText'),
+        errorArea: document.getElementById('errorArea'),
+        results: document.getElementById('results'),
+        creditsBadge: document.getElementById('creditsBadge'),
+        lyricsPrompt: document.getElementById('lyricsPrompt'),
+        lyricsBtn: document.getElementById('lyricsBtn'),
+        lyricsResult: document.getElementById('lyricsResult'),
+      };
+
+      let currentMode = 'simple';
+      let pollToken = 0;
+
+      els.modeBtns.forEach((btn) => {
+        btn.addEventListener('click', () => setMode(btn.dataset.mode));
+      });
+
+      function setMode(mode) {
+        currentMode = mode;
+        els.modeBtns.forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+        els.simpleFields.hidden = mode !== 'simple';
+        els.customFields.hidden = mode !== 'custom';
+      }
+
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str == null ? '' : String(str);
+        return div.innerHTML;
+      }
+
+      function setStatus(msg) {
+        els.statusArea.hidden = false;
+        els.statusText.textContent = msg;
+      }
+
+      function clearStatus() {
+        els.statusArea.hidden = true;
+        els.statusText.textContent = '';
+      }
+
+      function showError(msg) {
+        els.errorArea.hidden = false;
+        els.errorArea.textContent = msg;
+      }
+
+      function clearError() {
+        els.errorArea.hidden = true;
+        els.errorArea.textContent = '';
+      }
+
+      function clearResults() {
+        els.results.innerHTML = '';
+      }
+
+      function setLoading(loading) {
+        els.generateBtn.disabled = loading;
+        els.generateBtn.textContent = loading ? 'Generating…' : 'Generate Music';
+      }
+
+      async function loadCredits() {
+        try {
+          const res = await fetch(API.credits);
+          const json = await res.json();
+          els.creditsBadge.textContent = json.code === 200 ? `Credits: ${json.data}` : 'Credits: —';
+        } catch {
+          els.creditsBadge.textContent = 'Credits: —';
+        }
+      }
+
+      function buildPayload() {
+        const instrumental = els.instrumental.checked;
+        const model = els.model.value;
+        const style = els.style.value.trim();
+
+        if (currentMode === 'custom') {
+          const payload = { customMode: true, instrumental, model };
+          const title = els.title.value.trim();
+          const lyrics = els.lyrics.value.trim();
+          const negativeTags = els.negativeTags.value.trim();
+          const vocalGender = els.vocalGender.value;
+
+          if (title) payload.title = title;
+          if (style) payload.style = style;
+          if (!instrumental && lyrics) payload.lyrics = lyrics;
+          if (negativeTags) payload.negativeTags = negativeTags;
+          if (!instrumental && vocalGender) payload.vocalGender = vocalGender;
+
+          if (!payload.style && !payload.lyrics && !payload.negativeTags) {
+            throw new Error('Add a style, some lyrics, or something to avoid — Custom mode needs at least one.');
+          }
+          return payload;
+        }
+
+        const prompt = els.simplePrompt.value.trim();
+        const payload = { customMode: false, instrumental, model };
+        if (prompt) payload.prompt = prompt;
+        if (style) payload.style = style;
+
+        if (!payload.prompt && !payload.style) {
+          throw new Error('Add a description or a style to get started.');
+        }
+        return payload;
+      }
+
+      const FAIL_STATES = new Set([
+        'CREATE_TASK_FAILED', 'GENERATE_AUDIO_FAILED', 'CALLBACK_EXCEPTION', 'SENSITIVE_WORD_ERROR', 'FAILED',
+      ]);
+
+      function describeProgress(status) {
+        switch (status) {
+          case 'PENDING': return 'Queued…';
+          case 'TEXT_SUCCESS': return 'Lyrics ready, composing the music…';
+          case 'FIRST_SUCCESS': return 'First track ready, finishing the rest…';
+          case 'GENERATING': return 'Generating…';
+          default: return 'Working…';
+        }
+      }
+
+      function describeFailure(status, msg) {
+        const known = {
+          CREATE_TASK_FAILED: 'Could not start the generation task.',
+          GENERATE_AUDIO_FAILED: 'Music generation failed on Suno’s end.',
+          CALLBACK_EXCEPTION: 'An internal error interrupted generation.',
+          SENSITIVE_WORD_ERROR: 'Your prompt or lyrics were flagged — please rephrase and try again.',
+          FAILED: 'Generation failed.',
+        };
+        return msg || known[status] || `Generation failed (${status}).`;
+      }
+
+      function extractTracks(data) {
+        const resp = (data && data.response) || {};
+        return resp.sunoData || resp.data || [];
+      }
+
+      function renderTracks(tracks) {
+        clearResults();
+        if (!tracks.length) {
+          showError('No tracks came back. Try a different prompt.');
+          return;
+        }
+        tracks.forEach((t) => {
+          const audioSrc = t.audio_url || t.stream_audio_url || t.source_audio_url || '';
+          const card = document.createElement('div');
+          card.className = 'track-card';
+          card.innerHTML = `
+            ${t.image_url ? `<img class="track-art" src="${escapeHtml(t.image_url)}" alt="">` : ''}
+            <div class="track-info">
+              <h3>${escapeHtml(t.title || 'Untitled')}</h3>
+              <p class="tags">${escapeHtml(t.tags || '')}</p>
+              ${audioSrc ? `<audio controls src="${escapeHtml(audioSrc)}"></audio>` : '<p class="hint">Audio still processing — check back shortly.</p>'}
+              ${audioSrc ? `<a class="download-link" href="${escapeHtml(audioSrc)}" download>Download</a>` : ''}
+            </div>
+          `;
+          els.results.appendChild(card);
+        });
+      }
+
+      async function pollStatus(taskId, myToken) {
+        const maxAttempts = 90;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          if (myToken !== pollToken) return;
+
+          const res = await fetch(`${API.status}?taskId=${encodeURIComponent(taskId)}&type=music`);
+          const json = await res.json();
+          if (!res.ok || json.code !== 200) {
+            throw new Error(json.msg || 'Could not check generation status.');
+          }
+
+          const data = json.data;
+          const status = data.status;
+
+          if (status === 'SUCCESS') {
+            setStatus('Done!');
+            renderTracks(extractTracks(data));
+            loadCredits();
+            return;
+          }
+          if (FAIL_STATES.has(status)) {
+            throw new Error(describeFailure(status, data.errorMessage));
+          }
+
+          setStatus(describeProgress(status));
+          await sleep(5000);
+        }
+        throw new Error('Still generating after several minutes. Check back later or try again.');
+      }
+
+      els.form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        clearError();
+        clearResults();
+
+        let payload;
+        try {
+          payload = buildPayload();
+        } catch (err) {
+          showError(err.message);
+          return;
+        }
+
+        setLoading(true);
+        setStatus('Sending request…');
+        pollToken += 1;
+        const myToken = pollToken;
+
+        try {
+          const res = await fetch(API.generate, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const json = await res.json();
+          if (!res.ok || json.code !== 200) {
+            throw new Error(json.msg || `Request failed (${res.status})`);
+          }
+          setStatus('Queued…');
+          await pollStatus(json.data.taskId, myToken);
+        } catch (err) {
+          if (myToken === pollToken) showError(err.message || 'Something went wrong.');
+        } finally {
+          if (myToken === pollToken) {
+            setLoading(false);
+            clearStatus();
+          }
+        }
+      });
+
+      els.lyricsBtn.addEventListener('click', async () => {
+        const prompt = els.lyricsPrompt.value.trim();
+        if (!prompt) return;
+
+        els.lyricsBtn.disabled = true;
+        els.lyricsResult.textContent = 'Writing…';
+
+        try {
+          const res = await fetch(API.lyrics, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt }),
+          });
+          const json = await res.json();
+          if (!res.ok || json.code !== 200) throw new Error(json.msg || 'Could not generate lyrics.');
+
+          const taskId = json.data.taskId;
+          let text = '';
+          for (let i = 0; i < 30; i++) {
+            const sres = await fetch(`${API.status}?taskId=${encodeURIComponent(taskId)}&type=lyrics`);
+            const sjson = await sres.json();
+            if (!sres.ok || sjson.code !== 200) throw new Error(sjson.msg || 'Could not check lyrics status.');
+
+            const sdata = sjson.data;
+            if (sdata.status === 'SUCCESS') {
+              const variations = (sdata.response && sdata.response.data) || [];
+              text = variations.length ? variations[0].text : '';
+              break;
+            }
+            if (['CREATE_TASK_FAILED', 'GENERATE_LYRICS_FAILED', 'CALLBACK_EXCEPTION', 'SENSITIVE_WORD_ERROR'].includes(sdata.status)) {
+              throw new Error('Lyrics generation failed. Try a different prompt.');
+            }
+            await sleep(4000);
+          }
+
+          if (!text) throw new Error('Lyrics are taking longer than expected. Try again shortly.');
+
+          els.lyricsResult.innerHTML = `<pre>${escapeHtml(text)}</pre><button type="button" id="useLyricsBtn">Use these lyrics</button>`;
+          document.getElementById('useLyricsBtn').addEventListener('click', () => {
+            setMode('custom');
+            els.lyrics.value = text;
+            els.lyrics.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          });
+        } catch (err) {
+          els.lyricsResult.textContent = err.message;
+        } finally {
+          els.lyricsBtn.disabled = false;
+        }
+      });
+
+      loadCredits();
+    })();
+  </script>
+</body>
+</html>

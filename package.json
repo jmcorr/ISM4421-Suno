@@ -1,0 +1,9 @@
+{
+  "name": "ism4421-suno-music-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "One-page AI music generator built on the Suno API, deployed on Netlify.",
+  "engines": {
+    "node": ">=18"
+  }
+}
