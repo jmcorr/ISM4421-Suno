@@ -1,4 +1,4 @@
-const { sunoFetch, jsonResponse, handleError } = require('./_suno');
+const { sunoFetch, jsonResponse, handleError, getRequestApiKey } = require('./_suno');
 
 const PATHS = {
   music: '/api/v1/generate/record-info',
@@ -8,6 +8,13 @@ const PATHS = {
 exports.handler = async (event) => {
   if (event.httpMethod !== 'GET') {
     return jsonResponse(405, { code: 405, msg: 'Method not allowed' });
+  }
+
+  let apiKey;
+  try {
+    apiKey = getRequestApiKey(event);
+  } catch (err) {
+    return handleError(err);
   }
 
   const params = event.queryStringParameters || {};
@@ -21,6 +28,7 @@ exports.handler = async (event) => {
   try {
     const { status, json } = await sunoFetch(
       `${PATHS[type]}?taskId=${encodeURIComponent(taskId)}`,
+      apiKey,
       { method: 'GET' }
     );
     return jsonResponse(status, json);

@@ -1,23 +1,27 @@
 const SUNO_BASE_URL = 'https://api.sunoapi.org';
 
-function getApiKey() {
-  const key = process.env.SUNO_API_KEY;
-  if (!key) {
-    const err = new Error(
-      'This site is missing the SUNO_API_KEY environment variable. Add it in Netlify: Site settings > Environment variables.'
-    );
-    err.statusCode = 500;
-    throw err;
-  }
-  return key;
-}
-
 function siteUrl() {
   return process.env.URL || process.env.DEPLOY_PRIME_URL || 'http://localhost:8888';
 }
 
-async function sunoFetch(path, options = {}) {
-  const apiKey = getApiKey();
+// Each visitor supplies their own Suno API key from the browser (BYOK).
+// We only ever relay it to Suno for the current request — never logged,
+// never persisted, never written to env vars.
+function getRequestApiKey(event) {
+  const headers = event.headers || {};
+  const normalized = {};
+  for (const key in headers) normalized[key.toLowerCase()] = headers[key];
+
+  const apiKey = normalized['x-suno-key'];
+  if (!apiKey || !apiKey.trim()) {
+    const err = new Error('Missing Suno API key. Paste your key in the app to continue.');
+    err.statusCode = 401;
+    throw err;
+  }
+  return apiKey.trim();
+}
+
+async function sunoFetch(path, apiKey, options = {}) {
   const res = await fetch(`${SUNO_BASE_URL}${path}`, {
     ...options,
     headers: {
@@ -50,4 +54,4 @@ function handleError(err) {
   return jsonResponse(statusCode, { code: statusCode, msg: err.message || 'Unexpected server error' });
 }
 
-module.exports = { SUNO_BASE_URL, getApiKey, siteUrl, sunoFetch, jsonResponse, handleError };
+module.exports = { SUNO_BASE_URL, siteUrl, getRequestApiKey, sunoFetch, jsonResponse, handleError };
