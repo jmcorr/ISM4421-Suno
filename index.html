@@ -135,6 +135,7 @@
 
   input[type="text"],
   input[type="password"],
+  input[type="email"],
   textarea,
   select {
     width: 100%;
@@ -151,6 +152,7 @@
 
   input[type="text"]:focus,
   input[type="password"]:focus,
+  input[type="email"]:focus,
   textarea:focus,
   select:focus {
     outline: none;
@@ -372,7 +374,20 @@
       <div class="credits-badge" id="creditsBadge" hidden>Credits: —</div>
     </header>
 
-    <main class="card" id="keyGate">
+    <main class="card" id="loginGate">
+      <h2 class="gate-title">👋 Sign in</h2>
+      <p class="hint gate-hint">Enter your email and we'll send you a one-time sign-in link. No password needed.</p>
+      <form id="loginForm">
+        <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email" required />
+        <button type="submit" id="loginBtn">Send magic link</button>
+      </form>
+      <div class="status" id="loginSent" hidden>
+        <span>Check your email for a sign-in link. <a href="#" id="loginRetryLink">Use a different email</a></span>
+      </div>
+      <div class="error" id="loginError" hidden></div>
+    </main>
+
+    <main class="card" id="keyGate" hidden>
       <h2 class="gate-title">🔑 Enter your Suno API key</h2>
       <p class="hint gate-hint">
         Your key is stored only in your browser and is sent straight through to Suno for your
@@ -467,12 +482,18 @@
         Powered by <a href="https://sunoapi.org" target="_blank" rel="noopener">Suno API</a>.
         Generated tracks are hosted for about 15 days — download what you want to keep.
       </p>
+      <p id="signOutRow" hidden><a href="#" id="signOutLink">Sign out</a></p>
       <p id="changeKeyRow" hidden><a href="#" id="changeKeyLink">Use a different API key</a></p>
     </footer>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
   <script>
     (function () {
+      const SUPABASE_URL = 'https://pphgpiiywzjacmebkqmd.supabase.co';
+      const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_dyIMnc0vA7xHFI8PbkKNYA_uJvEcLNi';
+      const sb = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
       const API = {
         generate: '/.netlify/functions/generate',
         status: '/.netlify/functions/status',
@@ -483,6 +504,15 @@
       const STORAGE_KEY = 'sunoApiKey';
 
       const els = {
+        loginGate: document.getElementById('loginGate'),
+        loginForm: document.getElementById('loginForm'),
+        loginEmail: document.getElementById('loginEmail'),
+        loginBtn: document.getElementById('loginBtn'),
+        loginSent: document.getElementById('loginSent'),
+        loginRetryLink: document.getElementById('loginRetryLink'),
+        loginError: document.getElementById('loginError'),
+        signOutRow: document.getElementById('signOutRow'),
+        signOutLink: document.getElementById('signOutLink'),
         keyGate: document.getElementById('keyGate'),
         appCard: document.getElementById('appCard'),
         lyricsTool: document.getElementById('lyricsTool'),
@@ -519,6 +549,80 @@
       let pollToken = 0;
       let apiKey = '';
 
+      function showScreen(name) {
+        els.loginGate.hidden = name !== 'login';
+        els.keyGate.hidden = name !== 'key';
+        els.appCard.hidden = name !== 'app';
+        els.lyricsTool.hidden = name !== 'app';
+        els.creditsBadge.hidden = name !== 'app';
+        els.signOutRow.hidden = name === 'login';
+        els.changeKeyRow.hidden = name !== 'app';
+      }
+
+      // ---- Supabase email login ----
+
+      els.loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = els.loginEmail.value.trim();
+        if (!email) return;
+
+        els.loginBtn.disabled = true;
+        els.loginBtn.textContent = 'Sending…';
+        els.loginError.hidden = true;
+
+        try {
+          const { error } = await sb.auth.signInWithOtp({
+            email,
+            options: { emailRedirectTo: window.location.origin + window.location.pathname },
+          });
+          if (error) throw error;
+          els.loginSent.hidden = false;
+          els.loginForm.hidden = true;
+        } catch (err) {
+          els.loginError.hidden = false;
+          els.loginError.textContent = err.message || 'Could not send the link. Try again.';
+        } finally {
+          els.loginBtn.disabled = false;
+          els.loginBtn.textContent = 'Send magic link';
+        }
+      });
+
+      els.loginRetryLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        els.loginSent.hidden = true;
+        els.loginForm.hidden = false;
+        els.loginEmail.focus();
+      });
+
+      els.signOutLink.addEventListener('click', async (e) => {
+        e.preventDefault();
+        await sb.auth.signOut();
+        els.loginEmail.value = '';
+      });
+
+      sb.auth.onAuthStateChange((_event, session) => {
+        if (session) {
+          afterLogin();
+        } else {
+          els.loginForm.hidden = false;
+          els.loginSent.hidden = true;
+          showScreen('login');
+        }
+      });
+
+      function afterLogin() {
+        const savedKey = localStorage.getItem(STORAGE_KEY);
+        if (savedKey) {
+          tryUnlock(savedKey).then((ok) => {
+            if (!ok) showGate('Your saved key stopped working. Please re-enter it.');
+          });
+        } else {
+          showScreen('key');
+        }
+      }
+
+      // ---- Suno API key gate ----
+
       function sunoHeaders(extra) {
         return Object.assign({ 'X-Suno-Key': apiKey }, extra || {});
       }
@@ -526,11 +630,7 @@
       function showGate(message) {
         apiKey = '';
         localStorage.removeItem(STORAGE_KEY);
-        els.appCard.hidden = true;
-        els.lyricsTool.hidden = true;
-        els.changeKeyRow.hidden = true;
-        els.creditsBadge.hidden = true;
-        els.keyGate.hidden = false;
+        showScreen('key');
         if (message) {
           els.keyError.hidden = false;
           els.keyError.textContent = message;
@@ -541,21 +641,13 @@
         els.keyInput.focus();
       }
 
-      function showApp() {
-        els.keyGate.hidden = true;
-        els.appCard.hidden = false;
-        els.lyricsTool.hidden = false;
-        els.changeKeyRow.hidden = false;
-      }
-
       async function tryUnlock(key) {
         const res = await fetch(API.credits, { headers: { 'X-Suno-Key': key } });
         const json = await res.json().catch(() => ({}));
         if (res.ok && json.code === 200) {
           apiKey = key;
           localStorage.setItem(STORAGE_KEY, key);
-          showApp();
-          els.creditsBadge.hidden = false;
+          showScreen('app');
           els.creditsBadge.textContent = `Credits: ${json.data}`;
           return true;
         }
@@ -650,7 +742,6 @@
             showGate('Your saved key stopped working. Please re-enter it.');
             return;
           }
-          els.creditsBadge.hidden = false;
           els.creditsBadge.textContent = json.code === 200 ? `Credits: ${json.data}` : 'Credits: —';
         } catch {
           els.creditsBadge.textContent = 'Credits: —';
@@ -888,15 +979,6 @@
           els.lyricsBtn.disabled = false;
         }
       });
-
-      const savedKey = localStorage.getItem(STORAGE_KEY);
-      if (savedKey) {
-        tryUnlock(savedKey).then((ok) => {
-          if (!ok) showGate('Your saved key stopped working. Please re-enter it.');
-        });
-      } else {
-        showGate();
-      }
     })();
   </script>
 </body>
